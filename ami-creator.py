@@ -42,7 +42,7 @@ def parse_options(args):
 
     # options related to the config of your system
     sysopt = optparse.OptionGroup(parser, "System directory options",
-                                  "These options define directories used on your system for creating the live image")
+                                  "These options define directories used on your system for creating the ami")
     sysopt.add_option("-t", "--tmpdir", type="string",
                       dest="tmpdir", default="/var/tmp",
                       help="Temporary directory to use (default: /var/tmp)")
@@ -72,7 +72,29 @@ class AmiCreator(imgcreate.LoopImageCreator):
         # amis need xenblk at least
         self.__modules = ["xenblk", "xen_blkfront"]
         self.__modules.extend(imgcreate.kickstart.get_modules(self.ks))
-        
+
+    def _get_disk_type(self):
+        """Get the root disk type (xvd vs sd)
+
+        Older Xen kernels can end up with the rootfs as /dev/sda1
+        while newer paravirt ops kernels don't do the major stealing
+        and instead just end up xvd as you'd maybe expect.
+
+        Return sd or xvd based on the type of kernel being installed
+        """
+
+        # if use specify --ondisk, we'll use that as a cue
+        if len(imgcreate.kickstart.get_partitions()) > 0:
+            for part in imgcreate.kickstart.get_partitions():
+                if part.disk and part.disk.startswith("xvd"):
+                    return "xvd"
+                elif part.disk and part.disk.startswith("sd"):
+                    return "sd"
+
+        # otherwise, is this a good criteria?  it works for centos5 vs f14
+        if "kernel-xen" in self.ks.handler.packages.packageList:
+            return "sd"
+        return "xvd"
         
     # FIXME: refactor into imgcreate.LoopImageCreator
     def _get_kernel_options(self):
@@ -81,17 +103,18 @@ class AmiCreator(imgcreate.LoopImageCreator):
         return r
 
     def _get_fstab(self):
-        s = "/dev/sda1  /    %s     defaults   0 0\n" %(self._fstype,)
+        disk = self._get_disk_type()
+        s = "/dev/%sa1  /    %s     defaults   0 0\n" %(disk, self._fstype)
         # FIXME: should this be the default?
-        s += "/dev/sda3  swap  swap   defaults  0 0\n"
+        s += "/dev/%sa2  /mnt  ext3   defaults  0 0\n" %(disk,)
+        s += "/dev/%sa3  swap  swap   defaults  0 0\n" %(disk,)
         s += self._get_fstab_special()
         return s
     
     def _create_bootconfig(self):
-        # FIXME: should we handle a different root dev?
         imgtemplate = """title %(title)s %(version)s
         root (hd0)
-        kernel /boot/vmlinuz-%(version)s root=/dev/sda1 %(bootargs)s
+        kernel /boot/vmlinuz-%(version)s root=/dev/%(disk)sa1 %(bootargs)s
         initrd /boot/%(initrdfn)s-%(version)s.img
 """
 
@@ -114,6 +137,7 @@ timeout=%(timeout)s
             cfg += imgtemplate % {"title": self.name,
                                   "version": version,
                                   "initrdfn": initrdfn,
+                                  "disk": self._get_disk_type(),
                                   "bootargs": self._get_kernel_options()}
 
         with open(self._instroot + "/boot/grub/grub.conf", "w") as grubcfg:
@@ -197,7 +221,7 @@ def main():
         creator.unmount()
         creator.package()
     except imgcreate.CreatorError, e:
-        logging.error("Error creating Live CD: %s" %(e,))
+        logging.error("Error creating ami: %s" %(e,))
         return 1
     finally:
         creator.cleanup()
