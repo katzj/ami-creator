@@ -151,9 +151,9 @@ rootopts="defaults"
         imgcreate.LoopImageCreator._mount_instroot(self, base_on)
         # we only support rhel/centos5 for mkinitrd because of 
         # config incompatibilities.  blargh.
-        self.__write_mkinitrd_conf(self._instroot + "/etc/sysconfig/mkinitrd/ami")
+        self.__write_mkinitrd_conf(self._instroot + "/etc/sysconfig/mkinitrd/ami.conf")
         # and rhel/centos6 and current fedora (f12+) use dracut anyway
-        self.__write_dracut_conf(self._instroot + "/etc/dracut.conf")
+        self.__write_dracut_conf(self._instroot + "/etc/dracut.conf.d/ami.conf")
 
     def package(self, destdir="."):
         imgcreate.LoopImageCreator.package(self, destdir)
