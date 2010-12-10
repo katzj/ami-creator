@@ -66,6 +66,14 @@ def parse_options(args):
     return options
 
 class AmiCreator(imgcreate.LoopImageCreator):
+    def __init__(self, *args, **kwargs):
+        imgcreate.LoopImageCreator.__init__(self, *args, **kwargs)
+
+        # amis need xenblk at least
+        self.__modules = ["xenblk", "xen_blkfront"]
+        self.__modules.extend(imgcreate.kickstart.get_modules(self.ks))
+        
+        
     # FIXME: refactor into imgcreate.LoopImageCreator
     def _get_kernel_options(self):
         """Return a kernel options string for bootloader configuration."""
@@ -74,6 +82,8 @@ class AmiCreator(imgcreate.LoopImageCreator):
 
     def _get_fstab(self):
         s = "/dev/sda1  /    %s     defaults   0 0\n" %(self._fstype,)
+        # FIXME: should this be the default?
+        s += "/dev/sda3  swap  swap   defaults  0 0\n"
         s += self._get_fstab_special()
         return s
     
@@ -86,9 +96,9 @@ class AmiCreator(imgcreate.LoopImageCreator):
 """
 
         cfg = """default=0
-timeout=2
+timeout=%(timeout)s
 
-"""
+""" % { "timeout": imgcreate.kickstart.get_timeout(self.ks, 5) }
         
         kernels = self._get_kernel_versions()
         versions = []
@@ -100,13 +110,54 @@ timeout=2
                                   "version": version,
                                   "bootargs": self._get_kernel_options()}
 
-        grubcfg = open(self._instroot + "/boot/grub/grub.conf", "w")
-        grubcfg.write(cfg)
-        grubcfg.close()
+        with open(self._instroot + "/boot/grub/grub.conf", "w") as grubcfg:
+            grubcfg.write(cfg)
 
         # ec2 (pvgrub) expects to see /boot/grub/menu.lst
         os.link(self._instroot + "/boot/grub/grub.conf",
                 self._instroot + "/boot/grub/menu.lst")
+
+    def __write_dracut_conf(self, cfgfn):
+        if not os.path.exists(os.path.dirname(cfgfn)):
+            os.makedirs(os.path.dirname(cfgfn))
+
+        cfg = """
+filesystems+="%(rootfs)s"
+drivers+="%(modules)s"
+""" % {"rootfs": self._fstype,
+       "modules": " ".join(self.__modules)}
+
+        with open(cfgfn, "w") as f:
+            f.write(cfg)
+
+    def __write_mkinitrd_conf(self, cfgfn):
+        if not os.path.exists(os.path.dirname(cfgfn)):
+            os.makedirs(os.path.dirname(cfgfn))
+
+        cfg = """
+PROBE="no"
+MODULES+="%(rootfs)s "
+MODULES+="%(modules)s "
+rootfs="%(rootfs)s"
+rootopts="defaults"
+""" % {"rootfs": self._fstype,
+       "modules": " ".join(self.__modules)}
+
+        with open(cfgfn, "w") as f:
+            f.write(cfg)
+        os.chmod(cfgfn, 0755)
+
+    def _mount_instroot(self, base_on = None):
+        imgcreate.LoopImageCreator._mount_instroot(self, base_on)
+        # we only support rhel/centos5 for mkinitrd because of 
+        # config incompatibilities.  blargh.
+        self.__write_mkinitrd_conf(self._instroot + "/etc/sysconfig/mkinitrd/ami")
+        # and rhel/centos6 and current fedora (f12+) use dracut anyway
+        self.__write_dracut_conf(self._instroot + "/etc/dracut.conf")
+
+    def package(self, destdir="."):
+        imgcreate.LoopImageCreator.package(self, destdir)
+
 
 def main():
     try:
