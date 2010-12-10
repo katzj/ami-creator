@@ -175,7 +175,6 @@ def main():
     if options.name:
         name = options.name
 
-    name = "ami"
     creator = AmiCreator(ks, name)
     creator.tmpdir = os.path.abspath(options.tmpdir)
     if options.cachedir:
