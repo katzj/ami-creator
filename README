@@ -1,0 +1,21 @@
+ami-creator
+
+A simple tool based on python-imgcreate to create Fedora/Red Hat style 
+images that can be used as an AMI in EC2.
+
+Takes a kickstart config like the rest of livecd-creator, etc and spits out a
+disk image file that's suitable to upload as an s3 ami.  To do the upload right
+now, you'll want to run something like
+    ec2-bundle-image
+    ec2-upload-bundle
+    ec2-register
+after having created your base image file.  
+
+Tested with the following as guests:
+  * CentOS 5.5
+  * Fedora 14
+See the configs/ directory for example configs that work for each of these.
+
+
+Jeremy Katz <katzj@fedoraproject.org>
+2010 December 10
