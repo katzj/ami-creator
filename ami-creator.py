@@ -92,7 +92,7 @@ class AmiCreator(imgcreate.LoopImageCreator):
         imgtemplate = """title %(title)s %(version)s
         root (hd0)
         kernel /boot/vmlinuz-%(version)s root=/dev/sda1 %(bootargs)s
-        initrd /boot/initrd-%(version)s.img
+        initrd /boot/%(initrdfn)s-%(version)s.img
 """
 
         cfg = """default=0
@@ -106,8 +106,14 @@ timeout=%(timeout)s
             versions.extend(kernels[ktype])
 
         for version in versions:
+            if os.path.exists(self._instroot + "/boot/initrd-%(version)s.img"):
+                initrdfn = "initrd"
+            else:
+                initrdfn = "initramfs"
+                
             cfg += imgtemplate % {"title": self.name,
                                   "version": version,
+                                  "initrdfn": initrdfn,
                                   "bootargs": self._get_kernel_options()}
 
         with open(self._instroot + "/boot/grub/grub.conf", "w") as grubcfg:
