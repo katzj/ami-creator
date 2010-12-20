@@ -85,7 +85,7 @@ class AmiCreator(imgcreate.LoopImageCreator):
 
         # if use specify --ondisk, we'll use that as a cue
         if len(imgcreate.kickstart.get_partitions()) > 0:
-            for part in imgcreate.kickstart.get_partitions():
+            for part in imgcreate.kickstart.get_partitions(self.ks):
                 if part.disk and part.disk.startswith("xvd"):
                     return "xvd"
                 elif part.disk and part.disk.startswith("sd"):
