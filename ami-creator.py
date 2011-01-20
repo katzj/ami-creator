@@ -129,7 +129,7 @@ timeout=%(timeout)s
             versions.extend(kernels[ktype])
 
         for version in versions:
-            if os.path.exists(self._instroot + "/boot/initrd-%(version)s.img"):
+            if os.path.exists(self._instroot + "/boot/initrd-%s.img" %(version,)):
                 initrdfn = "initrd"
             else:
                 initrdfn = "initramfs"
