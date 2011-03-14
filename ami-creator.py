@@ -24,6 +24,8 @@ import sys
 
 import imgcreate
 
+import rpmUtils.arch
+
 class Usage(Exception):
     def __init__(self, msg = None):
         Exception.__init__(self, msg)
@@ -106,7 +108,11 @@ class AmiCreator(imgcreate.LoopImageCreator):
         disk = self._get_disk_type()
         s = "/dev/%sa1  /    %s     defaults   0 0\n" %(disk, self._fstype)
         # FIXME: should this be the default?
-        s += "/dev/%sa2  /mnt  ext3   defaults  0 0\n" %(disk,)
+        # Different arch's mnt with different disks.
+        if rpmUtils.arch.getBaseArch() == 'i386':
+            s += "/dev/%sa2  /mnt  ext3   defaults  0 0\n" %(disk,)
+        elif rpmUtils.arch.getBaseArch() == 'x86_64':
+            s += "/dev/%sb  /mnt  ext3   defaults  0 0\n" %(disk,)
         s += "/dev/%sa3  swap  swap   defaults  0 0\n" %(disk,)
         s += self._get_fstab_special()
         return s
