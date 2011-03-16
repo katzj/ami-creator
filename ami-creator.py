@@ -109,14 +109,12 @@ class AmiCreator(imgcreate.LoopImageCreator):
         s = "/dev/%sa1  /    %s     defaults   0 0\n" %(disk, self._fstype)
         # FIXME: should this be the default?
         # Different arch's mnt with different disks.
+        # Also, only i386 AMI's have swap set up at a3 suffixed disks
         if rpmUtils.arch.getBaseArch() == 'i386':
             s += "/dev/%sa2  /mnt  ext3   defaults  0 0\n" %(disk,)
+            s += "/dev/%sa3  swap  swap   defaults  0 0\n" %(disk,)
         elif rpmUtils.arch.getBaseArch() == 'x86_64':
             s += "/dev/%sb  /mnt  ext3   defaults  0 0\n" %(disk,)
-
-        # Only i386 AMI's have swap set up at a3 suffixed disks
-        if rpmUtils.arch.getBaseArch() == 'i386':
-            s += "/dev/%sa3  swap  swap   defaults  0 0\n" %(disk,)
 
         s += self._get_fstab_special()
         return s
