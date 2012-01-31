@@ -21,6 +21,7 @@ import logging
 import optparse
 import os
 import sys
+import shutil
 
 import imgcreate
 
@@ -40,6 +41,8 @@ def parse_options(args):
                       help="Path or url to kickstart config file")
     imgopt.add_option("-n", "--name", type="string", dest="name",
                       help="Name to use for the image")
+    imgopt.add_option("-e", "--extract-bootfiles", action="store_true", dest="extract_bootfiles",
+                      help="Extract the kernel and ramdisk from the image")
     parser.add_option_group(imgopt)
 
     # options related to the config of your system
@@ -72,7 +75,8 @@ class AmiCreator(imgcreate.LoopImageCreator):
         imgcreate.LoopImageCreator.__init__(self, *args, **kwargs)
 
         # amis need xenblk at least
-        self.__modules = ["xenblk", "xen_blkfront"]
+        self.__modules = ["xenblk", "xen_blkfront", "virtio_net", 
+                          "virtio_blk", "virtio_balloon", "e1000"]
         self.__modules.extend(imgcreate.kickstart.get_modules(self.ks))
 
     def _get_disk_type(self):
@@ -107,14 +111,6 @@ class AmiCreator(imgcreate.LoopImageCreator):
     def _get_fstab(self):
         disk = self._get_disk_type()
         s = "/dev/%sa1  /    %s     defaults   0 0\n" %(disk, self._fstype)
-        # FIXME: should this be the default?
-        # Different arch's mnt with different disks.
-        # Also, only i386 AMI's have swap set up at a3 suffixed disks
-        if rpmUtils.arch.getBaseArch() == 'i386':
-            s += "/dev/%sa2  /mnt  ext3   defaults  0 0\n" %(disk,)
-            s += "/dev/%sa3  swap  swap   defaults  0 0\n" %(disk,)
-        elif rpmUtils.arch.getBaseArch() == 'x86_64':
-            s += "/dev/%sb  /mnt  ext3   defaults  0 0\n" %(disk,)
 
         s += self._get_fstab_special()
         return s
@@ -154,6 +150,13 @@ timeout=%(timeout)s
         # ec2 (pvgrub) expects to see /boot/grub/menu.lst
         os.link(self._instroot + "/boot/grub/grub.conf",
                 self._instroot + "/boot/grub/menu.lst")
+
+    def extract_bootfiles(self):
+        for x in os.listdir(self._instroot + "/boot"):
+            if not (x.startswith("initr") or x.startswith("vmlinuz")):
+                continue
+            logging.info("Extracting " + x)
+            shutil.copyfile(self._instroot + "/boot/" + x, x)
 
     def __write_dracut_conf(self, cfgfn):
         if not os.path.exists(os.path.dirname(cfgfn)):
@@ -222,6 +225,8 @@ def main():
         creator.mount(cachedir=options.cachedir)
         creator.install()
         creator.configure()
+        if options.extract_bootfiles:
+            creator.extract_bootfiles()
         if options.give_shell:
             print "Launching shell. Exit to continue."
             print "----------------------------------"
