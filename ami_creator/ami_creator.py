@@ -97,6 +97,8 @@ class AmiCreator(imgcreate.LoopImageCreator):
                     return "xvd"
                 elif part.disk and part.disk.startswith("sd"):
                     return "sd"
+                elif part.disk and part.disk.startswith("vd"):
+                    return "vd"
 
         # otherwise, is this a good criteria?  it works for centos5 vs f14
         if "kernel-xen" in self.ks.handler.packages.packageList:
