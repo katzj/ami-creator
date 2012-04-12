@@ -75,29 +75,6 @@ class AmiCreator(imgcreate.LoopImageCreator):
         self.__modules = ["xenblk", "xen_blkfront"]
         self.__modules.extend(imgcreate.kickstart.get_modules(self.ks))
 
-    def _get_disk_type(self):
-        """Get the root disk type (xvd vs sd)
-
-        Older Xen kernels can end up with the rootfs as /dev/sda1
-        while newer paravirt ops kernels don't do the major stealing
-        and instead just end up xvd as you'd maybe expect.
-
-        Return sd or xvd based on the type of kernel being installed
-        """
-
-        # if use specify --ondisk, we'll use that as a cue
-        if len(imgcreate.kickstart.get_partitions(self.ks)) > 0:
-            for part in imgcreate.kickstart.get_partitions(self.ks):
-                if part.disk and part.disk.startswith("xvd"):
-                    return "xvd"
-                elif part.disk and part.disk.startswith("sd"):
-                    return "sd"
-
-        # otherwise, is this a good criteria?  it works for centos5 vs f14
-        if "kernel-xen" in self.ks.handler.packages.packageList:
-            return "sd"
-        return "xvd"
-        
     # FIXME: refactor into imgcreate.LoopImageCreator
     def _get_kernel_options(self):
         """Return a kernel options string for bootloader configuration."""
@@ -106,17 +83,6 @@ class AmiCreator(imgcreate.LoopImageCreator):
 
     def _get_fstab(self):
         s = "LABEL=_/   /        %s      defaults         0 0\n" % self._fstype
-
-        # FIXME: should this be the default?
-        # Different arch's mnt with different disks.
-        # Also, only i386 AMI's have swap set up at a3 suffixed disks
-        disk = self._get_disk_type()
-        if rpmUtils.arch.getBaseArch() == 'i386':
-            s += "/dev/%sa2  /mnt  ext3   defaults  0 0\n" %(disk,)
-            s += "/dev/%sa3  swap  swap   defaults  0 0\n" %(disk,)
-        elif rpmUtils.arch.getBaseArch() == 'x86_64':
-            s += "/dev/%sb  /mnt  ext3   defaults  0 0\n" %(disk,)
-
         s += self._get_fstab_special()
         return s
     
