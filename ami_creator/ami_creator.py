@@ -78,7 +78,7 @@ class AmiCreator(imgcreate.LoopImageCreator):
         self.__modules = ["xenblk", "xen_blkfront", "virtio_net", "virtio_pci",
                           "virtio_blk", "virtio_balloon", "e1000", "sym53c8xx",
                           "scsi_transport_sas", "mptbase", "mptscsih",
-                          "sd_mod", "mptsas", "sg" ]
+                          "sd_mod", "mptsas", "sg", "acpiphp" ]
         self.__modules.extend(imgcreate.kickstart.get_modules(self.ks))
 
     def _get_disk_type(self):
@@ -229,6 +229,7 @@ def main():
         creator.mount(cachedir=options.cachedir)
         creator.install()
         creator.configure()
+        imgcreate.kickstart.FirewallConfig(creator._instroot).apply(creator.ks.handler.firewall)
         if options.extract_bootfiles:
             creator.extract_bootfiles()
         if options.give_shell:
