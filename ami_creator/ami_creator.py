@@ -234,9 +234,18 @@ rootopts="defaults"
 install() {
     inst_rules 99-ami-udev.rules
     dracut_install /usr/sbin/ami-udev
+    dracut_install /bin/grep
 }
 ''')
             os.chmod(modulesetup, 0755)
+
+            # EL 6 dracut is different. Just make it source module-setup
+            with open(x + "/install", "w") as f:
+                f.write('''#!/bin/sh
+source $( dirname $BASH_SOURCE )/module-setup.sh
+install
+''')
+            os.chmod(x + "/install", 0755)
 
         amiudev = self._instroot + "/usr/sbin/ami-udev"
         if not os.path.exists(os.path.dirname(amiudev)):
@@ -249,8 +258,7 @@ if [ "$#" -ne 1 ] ; then
   exit 1
 else
   if echo "$1"|grep -qE 'xvd[a-z][0-9]?' ; then
-    letter=`echo "$1" | cut -c 4 | tr [e-z] [a-v]`
-    echo "$1" | sed -e "s/xvd./sd${letter}/"
+    echo sd$( echo ${1:3:1} | sed "y/[e-v]/[a-z]/" )${1:4:2}
   else
     echo "$1"
   fi
