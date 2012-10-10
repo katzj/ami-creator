@@ -120,8 +120,7 @@ class AmiCreator(imgcreate.LoopImageCreator):
         return r
 
     def _get_fstab(self):
-        disk = self._get_disk_type()
-        s = "/dev/%sa1  /    %s     defaults   0 0\n" %(disk, self._fstype)
+        s = "LABEL=_/   /        %s      defaults         0 0\n" % self._fstype
 
         s += self._get_fstab_special()
         return s
@@ -129,7 +128,7 @@ class AmiCreator(imgcreate.LoopImageCreator):
     def _create_bootconfig(self):
         imgtemplate = """title %(title)s %(version)s
         root (hd0)
-        kernel /boot/vmlinuz-%(version)s root=/dev/%(disk)sa1 %(bootargs)s
+        kernel /boot/vmlinuz-%(version)s root=LABEL=_/ %(bootargs)s
         initrd /boot/%(initrdfn)s-%(version)s.img
 """
 
@@ -152,7 +151,6 @@ timeout=%(timeout)s
             cfg += imgtemplate % {"title": self.name,
                                   "version": version,
                                   "initrdfn": initrdfn,
-                                  "disk": self._get_disk_type(),
                                   "bootargs": self._get_kernel_options()}
 
         if not os.path.exists(self._instroot + "/boot/grub"):
@@ -299,7 +297,7 @@ def main():
     if options.name:
         name = options.name
 
-    creator = AmiCreator(ks, name)
+    creator = AmiCreator(ks, name, "/")
     creator.tmpdir = os.path.abspath(options.tmpdir)
     if options.cachedir:
         options.cachedir = os.path.abspath(options.cachedir)
