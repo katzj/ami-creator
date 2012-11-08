@@ -79,29 +79,6 @@ class AmiCreator(imgcreate.LoopImageCreator):
                           "virtio_blk", "virtio_balloon", "e1000", 
                           "scsi_transport_sas", "mptbase", "mptscsih", "mptsas"]
         self.__modules.extend(imgcreate.kickstart.get_modules(self.ks))
-
-    def _get_disk_type(self):
-        """Get the root disk type (xvd vs sd)
-
-        Older Xen kernels can end up with the rootfs as /dev/sda1
-        while newer paravirt ops kernels don't do the major stealing
-        and instead just end up xvd as you'd maybe expect.
-
-        Return sd or xvd based on the type of kernel being installed
-        """
-
-        # if use specify --ondisk, we'll use that as a cue
-        if len(imgcreate.kickstart.get_partitions(self.ks)) > 0:
-            for part in imgcreate.kickstart.get_partitions(self.ks):
-                if part.disk and part.disk.startswith("xvd"):
-                    return "xvd"
-                elif part.disk and part.disk.startswith("sd"):
-                    return "sd"
-
-        # otherwise, is this a good criteria?  it works for centos5 vs f14
-        if "kernel-xen" in self.ks.handler.packages.packageList:
-            return "sd"
-        return "xvd"
         
     # FIXME: refactor into imgcreate.LoopImageCreator
     def _get_kernel_options(self):
