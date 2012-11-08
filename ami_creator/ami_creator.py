@@ -21,6 +21,7 @@ import logging
 import optparse
 import os
 import sys
+import shutil
 
 import imgcreate
 
@@ -40,6 +41,8 @@ def parse_options(args):
                       help="Path or url to kickstart config file")
     imgopt.add_option("-n", "--name", type="string", dest="name",
                       help="Name to use for the image")
+    imgopt.add_option("-e", "--extract-bootfiles", action="store_true", dest="extract_bootfiles",
+                      help="Extract the kernel and ramdisk from the image")
     parser.add_option_group(imgopt)
 
     # options related to the config of your system
@@ -146,6 +149,13 @@ timeout=%(timeout)s
         os.link(self._instroot + "/boot/grub/grub.conf",
                 self._instroot + "/boot/grub/menu.lst")
 
+    def extract_bootfiles(self):
+        for x in os.listdir(self._instroot + "/boot"):
+            if not (x.startswith("initr") or x.startswith("vmlinuz")):
+                continue
+            logging.info("Extracting " + x)
+            shutil.copyfile(self._instroot + "/boot/" + x, x)
+
     def __write_dracut_conf(self, cfgfn):
         if not os.path.exists(os.path.dirname(cfgfn)):
             os.makedirs(os.path.dirname(cfgfn))
@@ -213,6 +223,8 @@ def main():
         creator.mount(cachedir=options.cachedir)
         creator.install()
         creator.configure()
+        if options.extract_bootfiles:
+            creator.extract_bootfiles()
         if options.give_shell:
             print "Launching shell. Exit to continue."
             print "----------------------------------"
