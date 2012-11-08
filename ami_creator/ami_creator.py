@@ -72,7 +72,8 @@ class AmiCreator(imgcreate.LoopImageCreator):
         imgcreate.LoopImageCreator.__init__(self, *args, **kwargs)
 
         # amis need xenblk at least
-        self.__modules = ["xenblk", "xen_blkfront"]
+        self.__modules = ["xenblk", "xen_blkfront", "virtio_net",
+                          "virtio_blk", "virtio_balloon", "e1000"]
         self.__modules.extend(imgcreate.kickstart.get_modules(self.ks))
 
     def _get_disk_type(self):
