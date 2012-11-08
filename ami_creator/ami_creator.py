@@ -21,6 +21,7 @@ import logging
 import optparse
 import os
 import sys
+import shutil
 
 import imgcreate
 
@@ -40,6 +41,12 @@ def parse_options(args):
                       help="Path or url to kickstart config file")
     imgopt.add_option("-n", "--name", type="string", dest="name",
                       help="Name to use for the image")
+    imgopt.add_option("-e", "--extract-bootfiles", action="store_true", dest="extract_bootfiles",
+                      help="Extract the kernel and ramdisk from the image")
+    imgopt.add_option("-m", "--map-scsi-devices", action="store_true", dest="map_scsi_devices",
+                      help="Create symlinks to xvd* devices from sd* for Xen support")
+    imgopt.add_option("", "--xvd-offset", action="store_true", dest="xvd_offset",
+                      help="Map sd[a-v] to xvd[e-z] (offset by four for EL 6.x)")
     parser.add_option_group(imgopt)
 
     # options related to the config of your system
@@ -68,11 +75,17 @@ def parse_options(args):
     return options
 
 class AmiCreator(imgcreate.LoopImageCreator):
+    map_scsi_devices = False
+    xvd_offset = False
+
     def __init__(self, *args, **kwargs):
         imgcreate.LoopImageCreator.__init__(self, *args, **kwargs)
 
         # amis need xenblk at least
-        self.__modules = ["xenblk", "xen_blkfront"]
+        self.__modules = ["xenblk", "xen_blkfront", "virtio_net", "virtio_pci",
+                          "virtio_blk", "virtio_balloon", "e1000", "sym53c8xx",
+                          "scsi_transport_sas", "mptbase", "mptscsih",
+                          "sd_mod", "mptsas", "sg", "acpiphp" ]
         self.__modules.extend(imgcreate.kickstart.get_modules(self.ks))
 
     def _get_disk_type(self):
@@ -92,6 +105,8 @@ class AmiCreator(imgcreate.LoopImageCreator):
                     return "xvd"
                 elif part.disk and part.disk.startswith("sd"):
                     return "sd"
+                elif part.disk and part.disk.startswith("vd"):
+                    return "vd"
 
         # otherwise, is this a good criteria?  it works for centos5 vs f14
         if "kernel-xen" in self.ks.handler.packages.packageList:
@@ -106,16 +121,6 @@ class AmiCreator(imgcreate.LoopImageCreator):
 
     def _get_fstab(self):
         s = "LABEL=_/   /        %s      defaults         0 0\n" % self._fstype
-
-        # FIXME: should this be the default?
-        # Different arch's mnt with different disks.
-        # Also, only i386 AMI's have swap set up at a3 suffixed disks
-        disk = self._get_disk_type()
-        if rpmUtils.arch.getBaseArch() == 'i386':
-            s += "/dev/%sa2  /mnt  ext3   defaults  0 0\n" %(disk,)
-            s += "/dev/%sa3  swap  swap   defaults  0 0\n" %(disk,)
-        elif rpmUtils.arch.getBaseArch() == 'x86_64':
-            s += "/dev/%sb  /mnt  ext3   defaults  0 0\n" %(disk,)
 
         s += self._get_fstab_special()
         return s
@@ -148,12 +153,21 @@ timeout=%(timeout)s
                                   "initrdfn": initrdfn,
                                   "bootargs": self._get_kernel_options()}
 
+        if not os.path.exists(self._instroot + "/boot/grub"):
+            os.makedirs(self._instroot + "/boot/grub")
         with open(self._instroot + "/boot/grub/grub.conf", "w") as grubcfg:
             grubcfg.write(cfg)
 
         # ec2 (pvgrub) expects to see /boot/grub/menu.lst
         os.link(self._instroot + "/boot/grub/grub.conf",
                 self._instroot + "/boot/grub/menu.lst")
+
+    def extract_bootfiles(self):
+        for x in os.listdir(self._instroot + "/boot"):
+            if not (x.startswith("initr") or x.startswith("vmlinuz")):
+                continue
+            logging.info("Extracting " + x)
+            shutil.copyfile(self._instroot + "/boot/" + x, x)
 
     def __write_dracut_conf(self, cfgfn):
         if not os.path.exists(os.path.dirname(cfgfn)):
@@ -192,6 +206,76 @@ rootopts="defaults"
         self.__write_mkinitrd_conf(self._instroot + "/etc/sysconfig/mkinitrd/ami.conf")
         # and rhel/centos6 and current fedora (f12+) use dracut anyway
         self.__write_dracut_conf(self._instroot + "/etc/dracut.conf.d/ami.conf")
+        if self.map_scsi_devices:
+            self.__write_udev_config()
+
+    def __write_udev_config(self):
+        if self.map_scsi_devices:
+            with open(self._instroot + "/etc/dracut.conf.d/ami.conf", "a") as f:
+                f.write('add_dracutmodules+=" ami-udev "\n')
+
+        udev_rules = self._instroot + "/etc/udev/rules.d/99-ami-udev.rules"
+        if not os.path.exists(os.path.dirname(udev_rules)):
+            os.makedirs(os.path.dirname(udev_rules))
+        with open(udev_rules, "w") as f:
+            f.write('KERNEL=="xvd*", PROGRAM="/usr/sbin/ami-udev %k", SYMLINK+="%c"\n')
+
+        # We can't know whether this goes in /usr/lib or /usr/share,
+        # so write to both.  Yuck.
+        for x in [ self._instroot + "/usr/lib/dracut/modules.d/99ami-udev",
+                   self._instroot + "/usr/share/dracut/modules.d/99ami-udev" ]:
+            if not os.path.exists(x):
+                os.makedirs(x)
+            modulesetup = x + "/module-setup.sh"
+            with open(modulesetup, "w") as f:
+                f.write('''#!/bin/bash
+install() {
+    inst_rules 99-ami-udev.rules
+    dracut_install /usr/sbin/ami-udev
+    dracut_install /bin/grep
+}
+''')
+            os.chmod(modulesetup, 0755)
+
+            # EL 6 dracut is different. Just make it source module-setup
+            with open(x + "/install", "w") as f:
+                f.write('''#!/bin/sh
+source $( dirname $BASH_SOURCE )/module-setup.sh
+install
+''')
+            os.chmod(x + "/install", 0755)
+
+        amiudev = self._instroot + "/usr/sbin/ami-udev"
+        if not os.path.exists(os.path.dirname(amiudev)):
+            os.makedirs(os.path.dirname(amiudev))
+        with open(amiudev, "w") as f:
+            if self.xvd_offset:
+                f.write('''#!/bin/bash
+if [ "$#" -ne 1 ] ; then
+  echo "$0 <device>" >&2
+  exit 1
+else
+  if echo "$1"|grep -qE 'xvd[a-z][0-9]?' ; then
+    echo sd$( echo ${1:3:1} | sed "y/[e-v]/[a-z]/" )${1:4:2}
+  else
+    echo "$1"
+  fi
+fi
+''')
+            else:
+                f.write('''#!/bin/bash
+if [ "$#" -ne 1 ] ; then
+  echo "$0 <device>" >&2
+  exit 1
+else
+  if echo "$1"|grep -qE 'xvd[a-z][0-9]?' ; then
+    echo "$1" | sed -e 's/xvd/sd/'
+  else
+    echo "$1"
+  fi
+fi
+''')
+        os.chmod(amiudev, 0755)
 
     def package(self, destdir="."):
         imgcreate.LoopImageCreator.package(self, destdir)
@@ -217,11 +301,18 @@ def main():
     creator.tmpdir = os.path.abspath(options.tmpdir)
     if options.cachedir:
         options.cachedir = os.path.abspath(options.cachedir)
+    if options.xvd_offset:
+        creator.xvd_offset = True
+    if options.map_scsi_devices:
+        creator.map_scsi_devices = True
 
     try:
         creator.mount(cachedir=options.cachedir)
         creator.install()
         creator.configure()
+        imgcreate.kickstart.FirewallConfig(creator._instroot).apply(creator.ks.handler.firewall)
+        if options.extract_bootfiles:
+            creator.extract_bootfiles()
         if options.give_shell:
             print "Launching shell. Exit to continue."
             print "----------------------------------"
