@@ -94,13 +94,19 @@ class AmiCreator(imgcreate.LoopImageCreator):
         return s
     
     def _create_bootconfig(self):
-        imgtemplate = """title %(title)s %(version)s
+        imgtemplate = """title %(title)s %(version)s EBS
+        root (hd0,0)
+        kernel /boot/vmlinuz-%(version)s root=LABEL=_/ %(bootargs)s
+        initrd /boot/%(initrdfn)s-%(version)s.img
+
+        title %(title)s %(version)s S3
         root (hd0)
         kernel /boot/vmlinuz-%(version)s root=LABEL=_/ %(bootargs)s
         initrd /boot/%(initrdfn)s-%(version)s.img
 """
 
         cfg = """default=0
+fallback=1
 timeout=%(timeout)s
 
 """ % { "timeout": imgcreate.kickstart.get_timeout(self.ks, 5) }
