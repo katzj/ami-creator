@@ -21,6 +21,15 @@ Kickstart configs.  Supports ebs- and instance-store-backed instances.
     ./create-image.sh
 
 
+## add'l resources
+
+* [Announcing ami-creator](http://velohacker.com/2010/12/13/announcing-ami-creator/)
+* [CentOS AMIs from Kickstart](http://dan.carley.co/blog/2012/04/17/centos-amis-from-kickstart/)
+* [How to build your own S3- and EBS-backed instances](http://amazonaws.michael--martinez.com)
+* [Using Your Own Linux Kernels - Amazon Elastic Compute Cloud](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/UserProvidedKernels.html)
+* [How to make your own CentOS 6 AMIs](http://www.bashton.com/blog/2012/how-to-make-your-own-centos-6-amis/)
+* [CentOS 5 kickstart options](http://www.centos.org/docs/5/html/Installation_Guide-en-US/s1-kickstart2-options.html)
+
 ## original `README`
 
     ami-creator
