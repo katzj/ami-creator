@@ -25,8 +25,6 @@ import shutil
 
 import imgcreate
 
-import rpmUtils.arch
-
 class Usage(Exception):
     def __init__(self, msg = None):
         Exception.__init__(self, msg)
@@ -81,6 +79,9 @@ class AmiCreator(imgcreate.LoopImageCreator):
                           "sd_mod", "mptsas", "sg" ]
         self.__modules.extend(imgcreate.kickstart.get_modules(self.ks))
         
+        ## for some reason ExtDiskMount prefixes the fslabel with "_"
+        self.__real_fslabel = "_" + self.fslabel
+        
     # FIXME: refactor into imgcreate.LoopImageCreator
     def _get_kernel_options(self):
         """Return a kernel options string for bootloader configuration."""
@@ -88,7 +89,7 @@ class AmiCreator(imgcreate.LoopImageCreator):
         return r
 
     def _get_fstab(self):
-        s = "LABEL=_/   /        %s      defaults         0 0\n" % self._fstype
+        s = "LABEL=%s   /        %s      defaults         0 0\n" % (self.__real_fslabel, self._fstype)
 
         s += self._get_fstab_special()
         return s
@@ -97,12 +98,12 @@ class AmiCreator(imgcreate.LoopImageCreator):
         imgtemplate = """
 title %(title)s %(version)s EBS
     root (hd0,0)
-    kernel /boot/vmlinuz-%(version)s root=LABEL=_/ %(bootargs)s
+    kernel /boot/vmlinuz-%(version)s root=LABEL=%(fslabel)s %(bootargs)s
     initrd /boot/%(initrdfn)s-%(version)s.img
 
 title %(title)s %(version)s S3
     root (hd0)
-    kernel /boot/vmlinuz-%(version)s root=LABEL=_/ %(bootargs)s
+    kernel /boot/vmlinuz-%(version)s root=LABEL=%(fslabel)s %(bootargs)s
     initrd /boot/%(initrdfn)s-%(version)s.img
 """
 
@@ -128,7 +129,8 @@ hiddenmenu
             cfg += imgtemplate % {"title": self.name,
                                   "version": version,
                                   "initrdfn": initrdfn,
-                                  "bootargs": self._get_kernel_options()}
+                                  "bootargs": self._get_kernel_options(),
+                                  "fslabel": self.__real_fslabel}
 
         with open(self._instroot + "/boot/grub/grub.conf", "w") as grubcfg:
             grubcfg.write(cfg)
@@ -202,7 +204,7 @@ def main():
     if options.name:
         name = options.name
 
-    creator = AmiCreator(ks, name, "/")
+    creator = AmiCreator(ks, name, fslabel="root")
     creator.tmpdir = os.path.abspath(options.tmpdir)
     if options.cachedir:
         options.cachedir = os.path.abspath(options.cachedir)
