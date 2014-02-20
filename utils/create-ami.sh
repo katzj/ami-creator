@@ -1,5 +1,7 @@
 #!/bin/bash
 
+## @todo check if ami name already exists
+
 set -e
 set -u
 # set -x
@@ -11,13 +13,21 @@ function die() {
 
 [ $EUID -eq 0 ] || die "must be root"
 
-_basedir="$( cd $( dirname -- $0 ) && /bin/pwd )"
+_basedir="$( cd $( dirname -- $0 )/.. && /bin/pwd )"
 
-[ $# -eq 3 ] || die "usage: $0 <kickstart config file> <ebs block device> <ebs vol id>"
+cachedir="${_basedir}/cache"
+[ -d "${cachedir}" ] || mkdir "${cachedir}"
 
-config="${1}"
-block_dev="${2}"
-vol_id="${3}"
+[ $# -eq 4 ] || die "usage: $0 <kickstart config file> <ami name> <ebs block device> <ebs vol id>"
+
+config="$( readlink -f ${1} )"
+ami_name="${2}"
+block_dev="${3}"
+vol_id="${4}"
+
+## change to a well-known directory; doesn't have to make sense, just has to be
+## consistent.
+cd "$( dirname ${config} )"
 
 name="$( basename $config | sed -r -e 's#\.[^.]+$##g' )"
 dest_img="${name}.img"
@@ -76,14 +86,7 @@ done
 
 ## kernel-id hard-coded
 ## see http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/UserProvidedKernels.html
-reg_img_args="--kernel-id aki-919dcaf8 --architecture x86_64"
-
-reg_img_args="${reg_img_args} --name ${name}"
-reg_img_args="${reg_img_args} --root-device-name /dev/sda1"
-
-## fuck me.
-reg_img_args="${reg_img_args} --block-device-mappings [{\"DeviceName\":\"/dev/sda\",\"Ebs\":{\"SnapshotId\":\"${snap_id}\",\"VolumeSize\":10}},{\"DeviceName\":\"/dev/sdb\",\"VirtualName\":\"ephemeral0\"}]"
-
-image_id=$( aws ec2 register-image ${reg_img_args} | jq -r .ImageId )
+## fuck me, bash space escaping is a pain in the ass.
+image_id=$( aws ec2 register-image --kernel-id aki-919dcaf8 --architecture x86_64 --name "${ami_name}" --root-device-name /dev/sda1 --block-device-mappings "[{\"DeviceName\":\"/dev/sda\",\"Ebs\":{\"SnapshotId\":\"${snap_id}\",\"VolumeSize\":10}},{\"DeviceName\":\"/dev/sdb\",\"VirtualName\":\"ephemeral0\"}]" | jq -r .ImageId )
 
 echo "created AMI with id ${image_id}"
