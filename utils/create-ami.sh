@@ -72,7 +72,7 @@ sfdisk ${block_dev} << EOF
 EOF
 
 ## write image to volume and resize the filesystem
-dd if=${dest_img} of=${block_dev}1 bs=8M
+dd if=${dest_img} conv=fsync of=${block_dev}1
 e2fsck -f ${block_dev}1
 resize2fs ${block_dev}1
 
