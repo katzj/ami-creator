@@ -63,6 +63,13 @@ else
     echo "$dest_img already exists; not recreating"
 fi
 
+## ok, this is fucked up.  the dd writing the image to the volume is exiting
+## with zero, but the data isn't getting written.  Bringing out the big guns.
+
+## forcibly corrupt the fucker so we know we're not working with stale data
+dd if=/dev/zero of=${block_dev} bs=8M count=10 conv=fsync oflag=sync
+sync;sync;sync
+
 ## partition volume
 sfdisk ${block_dev} << EOF
 0,,83,*
@@ -71,9 +78,16 @@ sfdisk ${block_dev} << EOF
 ;
 EOF
 
-## write image to volume and resize the filesystem
-dd if=${dest_img} conv=fsync of=${block_dev}1
-e2fsck -f ${block_dev}1
+## write image to volume
+dd if=${dest_img} of=${block_dev}1 conv=fsync oflag=sync bs=8k
+
+## force-check the filesystem; re-write the image if it fails
+if ! fsck.ext4 -n -f ${block_dev}1 ; then
+    dd if=${dest_img} of=${block_dev}1 conv=fsync oflag=sync bs=8k
+    fsck.ext4 -n -f ${block_dev}1
+fi
+
+## resize the filesystem
 resize2fs ${block_dev}1
 
 ## create a snapshot of the volume
