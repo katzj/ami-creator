@@ -18,12 +18,16 @@ _basedir="$( cd $( dirname -- $0 )/.. && /bin/pwd )"
 cachedir="${_basedir}/cache"
 [ -d "${cachedir}" ] || mkdir "${cachedir}"
 
-[ $# -eq 4 ] || die "usage: $0 <kickstart config file> <ami name> <ebs block device> <ebs vol id>"
+[ $# -eq 4 -o $# -eq 5 ] || die "usage: $0 <kickstart config file> <ami name> <ebs block device> <ebs vol id> [<virtualization-type>]"
 
 config="$( readlink -f ${1} )"
 ami_name="${2}"
 block_dev="${3}"
 vol_id="${4}"
+virt_type=""
+if [ $# -eq 5 ]; then
+    virt_type="--virtualization-type ${5}"
+fi
 
 ## change to a well-known directory; doesn't have to make sense, just has to be
 ## consistent.
@@ -101,6 +105,6 @@ done
 ## kernel-id hard-coded
 ## see http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/UserProvidedKernels.html
 ## fuck me, bash space escaping is a pain in the ass.
-image_id=$( aws ec2 register-image --kernel-id aki-919dcaf8 --architecture x86_64 --name "${ami_name}" --root-device-name /dev/sda1 --block-device-mappings "[{\"DeviceName\":\"/dev/sda\",\"Ebs\":{\"SnapshotId\":\"${snap_id}\",\"VolumeSize\":10}},{\"DeviceName\":\"/dev/sdb\",\"VirtualName\":\"ephemeral0\"}]" | jq -r .ImageId )
+image_id=$( aws ec2 register-image --kernel-id aki-919dcaf8 --architecture x86_64 --name "${ami_name}" --root-device-name /dev/sda1 --block-device-mappings "[{\"DeviceName\":\"/dev/sda\",\"Ebs\":{\"SnapshotId\":\"${snap_id}\",\"VolumeSize\":10}},{\"DeviceName\":\"/dev/sdb\",\"VirtualName\":\"ephemeral0\"}]" ${virt_type} | jq -r .ImageId )
 
 echo "created AMI with id ${image_id}"
