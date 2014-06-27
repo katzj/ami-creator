@@ -26,10 +26,13 @@ block_dev="${3}"
 vol_id="${4}"
 virt_type=""
 kernel_id="--kernel-id aki-919dcaf8"
+root_device="/dev/sda"
 if [ $# -eq 5 ]; then
     virt_type="--virtualization-type ${5}"
     if [ "${5}" == "hvm" ]; then
         kernel_id=""
+        # need to figure out why we need the 1 at the end...
+        root_device="/dev/sda1"
     fi
 fi
 
@@ -109,6 +112,6 @@ done
 ## kernel-id hard-coded
 ## see http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/UserProvidedKernels.html
 ## fuck me, bash space escaping is a pain in the ass.
-image_id=$( aws ec2 register-image ${kernel_id} --architecture x86_64 --name "${ami_name}" --root-device-name /dev/sda1 --block-device-mappings "[{\"DeviceName\":\"/dev/sda\",\"Ebs\":{\"SnapshotId\":\"${snap_id}\",\"VolumeSize\":10}},{\"DeviceName\":\"/dev/sdb\",\"VirtualName\":\"ephemeral0\"}]" ${virt_type} | jq -r .ImageId )
+image_id=$( aws ec2 register-image ${kernel_id} --architecture x86_64 --name "${ami_name}" --root-device-name /dev/sda1 --block-device-mappings "[{\"DeviceName\":\"${root_device}\",\"Ebs\":{\"SnapshotId\":\"${snap_id}\",\"VolumeSize\":10}},{\"DeviceName\":\"/dev/sdb\",\"VirtualName\":\"ephemeral0\"}]" ${virt_type} | jq -r .ImageId )
 
 echo "created AMI with id ${image_id}"
