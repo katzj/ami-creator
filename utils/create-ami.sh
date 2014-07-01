@@ -101,6 +101,25 @@ fi
 ## resize the filesystem
 resize2fs ${block_dev}1
 
+# patch grub-install then install grub on the volume
+# https://bugs.archlinux.org/task/30241 for where and why for the patch
+curl -f -L -o /tmp/grub-install.diff https://raw.githubusercontent.com/mozilla/build-cloud-tools/master/ami_configs/centos-6-x86_64-hvm-base/grub-install.diff
+
+which patch >/dev/null || yum install -y patch
+patch --no-backup-if-mismatch -N -p0 -i /tmp/grub-install.diff /sbin/grub-install
+
+# mount the volume so we can install grub and fix the /boot/grub/device.map file (otherwise grub can't find the device even with --recheck)
+vol_mnt="/mnt/ebs_vol"
+mkdir -p ${vol_mnt}
+mount -t ext4 ${block_dev}1 ${vol_mnt}
+
+# make ${vol_mnt}/boot/grub/device.map with contents "(hd0) /dev/xvda" because otherwise grub-install isn't happy, even with --recheck
+echo "(hd0)    ${block_dev}" > ${vol_mnt}/boot/grub/device.map
+
+grub-install --root-directory=${vol_mnt} --no-floppy ${block_dev}
+
+umount ${vol_mnt}
+
 ## create a snapshot of the volume
 snap_id=$( aws ec2 create-snapshot --volume-id ${vol_id} --description "root image for ${name}" | jq -r .SnapshotId )
 
