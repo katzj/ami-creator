@@ -36,6 +36,15 @@ if [ $# -eq 5 ]; then
     fi
 fi
 
+echo "executing with..."
+echo "config: ${config}"
+echo "ami_name: ${ami_name}"
+echo "block_dev: ${block_dev}"
+echo "vol_id: ${vol_id}"
+echo "virt_type: ${virt_type}"
+echo "kernel_id: ${kernel_id}"
+echo "root_device: ${root_device}"
+
 ## change to a well-known directory; doesn't have to make sense, just has to be
 ## consistent.
 cd "$( dirname ${config} )"
