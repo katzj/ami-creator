@@ -45,6 +45,19 @@ echo "virt_type: ${virt_type}"
 echo "kernel_id: ${kernel_id}"
 echo "root_device: ${root_device}"
 
+## A client error (InvalidAMIName.Malformed) occurred when calling the
+## RegisterImage operation: AMI names must be between 3 and 128 characters long,
+## and may contain letters, numbers, '(', ')', '.', '-', '/' and '_'
+if [ ${#ami_name} -lt 3 ] || [ ${#ami_name} -gt 128 ]; then
+    echo "illegal length for ami_name; must be >= 3, <= 128"
+    exit 1
+fi
+
+# if echo $ami_name | egrep -q '[^a-z0-9 ()./_-]' ; then
+#     echo "illegal characters in ami_name; must be [a-z0-9 ()./_-]"
+#     exit 1
+# fi
+
 ## change to a well-known directory; doesn't have to make sense, just has to be
 ## consistent.
 cd "$( dirname ${config} )"
