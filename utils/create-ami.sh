@@ -23,16 +23,24 @@ cachedir="${_basedir}/cache"
 config="$( readlink -f ${1} )"
 ami_name="${2}"
 block_dev="${3}"
+img_target_dev="${block_dev}1"
+
 vol_id="${4}"
 virt_type=""
-kernel_id="--kernel-id aki-919dcaf8"
+kernel_id="--kernel-id aki-919dcaf8" ## specific to us-east-1!
+
+## http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/block-device-mapping-concepts.html
 root_device="/dev/sda"
+
 if [ $# -eq 5 ]; then
     virt_type="--virtualization-type ${5}"
+
     if [ "${5}" == "hvm" ]; then
+        ## kernel id only applies for paravirtualized instances
         kernel_id=""
-        # need to figure out why we need the 1 at the end...
-        root_device="/dev/sda1"
+        
+        ## the root device for the block device mapping
+        root_device="/dev/xvda"
     fi
 fi
 
@@ -44,6 +52,19 @@ echo "vol_id: ${vol_id}"
 echo "virt_type: ${virt_type}"
 echo "kernel_id: ${kernel_id}"
 echo "root_device: ${root_device}"
+
+## A client error (InvalidAMIName.Malformed) occurred when calling the
+## RegisterImage operation: AMI names must be between 3 and 128 characters long,
+## and may contain letters, numbers, '(', ')', '.', '-', '/' and '_'
+if [ ${#ami_name} -lt 3 ] || [ ${#ami_name} -gt 128 ]; then
+    echo "illegal length for ami_name; must be >= 3, <= 128"
+    exit 1
+fi
+
+# if echo $ami_name | egrep -q '[^a-z0-9 ()./_-]' ; then
+#     echo "illegal characters in ami_name; must be [a-z0-9 ()./_-]"
+#     exit 1
+# fi
 
 ## change to a well-known directory; doesn't have to make sense, just has to be
 ## consistent.
@@ -58,6 +79,7 @@ which curl >/dev/null 2>&1 || die "need curl"
 which jq >/dev/null 2>&1 || die "need jq"
 which e2fsck >/dev/null 2>&1 || die "need e2fsck"
 which resize2fs >/dev/null 2>&1 || die "need resize2fs"
+which patch >/dev/null 2>&1 || die "need patch"
 rpm -q python-imgcreate >/dev/null 2>&1 || die "need python-imgcreate package"
 
 ## the block device must exist
@@ -98,17 +120,22 @@ sfdisk ${block_dev} << EOF
 ;
 EOF
 
+## reread partition table
+hdparm -z ${block_dev}
+
 ## write image to volume
-dd if=${dest_img} of=${block_dev}1 conv=fsync oflag=sync bs=8k
+echo "writing image to ${img_target_dev}"
+dd if=${dest_img} of=${img_target_dev} conv=fsync oflag=sync bs=8k
 
 ## force-check the filesystem; re-write the image if it fails
-if ! fsck.ext4 -n -f ${block_dev}1 ; then
-    dd if=${dest_img} of=${block_dev}1 conv=fsync oflag=sync bs=8k
-    fsck.ext4 -n -f ${block_dev}1
+if ! fsck.ext4 -n -f ${img_target_dev} ; then
+    echo "well, that didn't work; trying again"
+    dd if=${dest_img} of=${img_target_dev} conv=fsync oflag=sync bs=8k
+    fsck.ext4 -n -f ${img_target_dev}
 fi
 
 ## resize the filesystem
-resize2fs ${block_dev}1
+resize2fs ${img_target_dev}
 
 if [ $# -eq 5 ]; then
     if [ "${5}" == "hvm" ]; then
@@ -116,15 +143,18 @@ if [ $# -eq 5 ]; then
 
         # patch grub-install then install grub on the volume
         # https://bugs.archlinux.org/task/30241 for where and why for the patch
-        curl -f -L -o /tmp/grub-install.diff https://raw.githubusercontent.com/mozilla/build-cloud-tools/master/ami_configs/centos-6-x86_64-hvm-base/grub-install.diff
+        ## https://raw.githubusercontent.com/mozilla/build-cloud-tools/master/ami_configs/centos-6-x86_64-hvm-base/grub-install.diff
+        if [ ! -e /sbin/grub-install.orig ]; then
+            cp /sbin/grub-install /sbin/grub-install.orig
 
-        which patch >/dev/null || yum install -y patch
-        patch --no-backup-if-mismatch -N -p0 -i /tmp/grub-install.diff /sbin/grub-install
+            ## only patch once
+            patch --no-backup-if-mismatch -N -p0 -i ${_basedir}/utils/grub-install.diff /sbin/grub-install
+        fi
 
         # mount the volume so we can install grub and fix the /boot/grub/device.map file (otherwise grub can't find the device even with --recheck)
         vol_mnt="/mnt/ebs_vol"
         mkdir -p ${vol_mnt}
-        mount -t ext4 ${block_dev}1 ${vol_mnt}
+        mount -t ext4 ${img_target_dev} ${vol_mnt}
 
         # make ${vol_mnt}/boot/grub/device.map with contents "(hd0) ${block_dev}" because otherwise grub-install isn't happy, even with --recheck
         echo "(hd0)    ${block_dev}" > ${vol_mnt}/boot/grub/device.map
@@ -149,6 +179,15 @@ done
 ## kernel-id hard-coded
 ## see http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/UserProvidedKernels.html
 ## fuck me, bash space escaping is a pain in the ass.
-image_id=$( aws ec2 register-image ${kernel_id} --architecture x86_64 --name "${ami_name}" --root-device-name /dev/sda1 --block-device-mappings "[{\"DeviceName\":\"${root_device}\",\"Ebs\":{\"SnapshotId\":\"${snap_id}\",\"VolumeSize\":10}},{\"DeviceName\":\"/dev/sdb\",\"VirtualName\":\"ephemeral0\"}]" ${virt_type} | jq -r .ImageId )
+image_id=$( \
+    aws ec2 register-image \
+    ${kernel_id} \
+    --architecture x86_64 \
+    --name "${ami_name}" \
+    --root-device-name ${root_device} \
+    --block-device-mappings "[{\"DeviceName\":\"${root_device}\",\"Ebs\":{\"SnapshotId\":\"${snap_id}\",\"VolumeSize\":10}},{\"DeviceName\":\"/dev/sdb\",\"VirtualName\":\"ephemeral0\"}]" \
+    ${virt_type} \
+    | jq -r .ImageId
+)
 
 echo "created AMI with id ${image_id}"
