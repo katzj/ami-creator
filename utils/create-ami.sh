@@ -112,6 +112,9 @@ sfdisk ${block_dev} << EOF
 ;
 EOF
 
+## reread partition table
+hdparm -z ${block_dev}
+
 ## write image to volume
 dd if=${dest_img} of=${block_dev}1 conv=fsync oflag=sync bs=8k
 
