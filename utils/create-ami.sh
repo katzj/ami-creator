@@ -131,8 +131,12 @@ if [ $# -eq 5 ]; then
         # patch grub-install then install grub on the volume
         # https://bugs.archlinux.org/task/30241 for where and why for the patch
         ## https://raw.githubusercontent.com/mozilla/build-cloud-tools/master/ami_configs/centos-6-x86_64-hvm-base/grub-install.diff
-        
-        patch --no-backup-if-mismatch -N -p0 -i ${_basedir}/grub-install.diff /sbin/grub-install
+        if [ ! -e /sbin/grub-install.orig ]; then
+            cp /sbin/grub-install /sbin/grub-install.orig
+
+            ## only patch once
+            patch --no-backup-if-mismatch -N -p0 -i ${_basedir}/grub-install.diff /sbin/grub-install
+        fi
 
         # mount the volume so we can install grub and fix the /boot/grub/device.map file (otherwise grub can't find the device even with --recheck)
         vol_mnt="/mnt/ebs_vol"
