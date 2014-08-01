@@ -116,16 +116,17 @@ EOF
 hdparm -z ${block_dev}
 
 ## write image to volume
-dd if=${dest_img} of=${block_dev}1 conv=fsync oflag=sync bs=8k
+img_target_dev="${block_dev}1"
+dd if=${dest_img} of=${img_target_dev} conv=fsync oflag=sync bs=8k
 
 ## force-check the filesystem; re-write the image if it fails
-if ! fsck.ext4 -n -f ${block_dev}1 ; then
-    dd if=${dest_img} of=${block_dev}1 conv=fsync oflag=sync bs=8k
-    fsck.ext4 -n -f ${block_dev}1
+if ! fsck.ext4 -n -f ${img_target_dev} ; then
+    dd if=${dest_img} of=${img_target_dev} conv=fsync oflag=sync bs=8k
+    fsck.ext4 -n -f ${img_target_dev}
 fi
 
 ## resize the filesystem
-resize2fs ${block_dev}1
+resize2fs ${img_target_dev}
 
 if [ $# -eq 5 ]; then
     if [ "${5}" == "hvm" ]; then
@@ -144,7 +145,7 @@ if [ $# -eq 5 ]; then
         # mount the volume so we can install grub and fix the /boot/grub/device.map file (otherwise grub can't find the device even with --recheck)
         vol_mnt="/mnt/ebs_vol"
         mkdir -p ${vol_mnt}
-        mount -t ext4 ${block_dev}1 ${vol_mnt}
+        mount -t ext4 ${img_target_dev} ${vol_mnt}
 
         # make ${vol_mnt}/boot/grub/device.map with contents "(hd0) ${block_dev}" because otherwise grub-install isn't happy, even with --recheck
         echo "(hd0)    ${block_dev}" > ${vol_mnt}/boot/grub/device.map
