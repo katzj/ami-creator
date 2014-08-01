@@ -71,6 +71,7 @@ which curl >/dev/null 2>&1 || die "need curl"
 which jq >/dev/null 2>&1 || die "need jq"
 which e2fsck >/dev/null 2>&1 || die "need e2fsck"
 which resize2fs >/dev/null 2>&1 || die "need resize2fs"
+which patch >/dev/null 2>&1 || die "need patch"
 rpm -q python-imgcreate >/dev/null 2>&1 || die "need python-imgcreate package"
 
 ## the block device must exist
