@@ -27,14 +27,20 @@ img_target_dev="${block_dev}1"
 
 vol_id="${4}"
 virt_type=""
-kernel_id="--kernel-id aki-919dcaf8"
+kernel_id="--kernel-id aki-919dcaf8" ## specific to us-east-1!
+
+## http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/block-device-mapping-concepts.html
 root_device="/dev/sda"
+
 if [ $# -eq 5 ]; then
     virt_type="--virtualization-type ${5}"
+
     if [ "${5}" == "hvm" ]; then
+        ## kernel id only applies for paravirtualized instances
         kernel_id=""
-        # need to figure out why we need the 1 at the end...
-        root_device="/dev/sda1"
+        
+        ## the root device for the block device mapping
+        root_device="/dev/xvda"
     fi
 fi
 
@@ -123,6 +129,7 @@ dd if=${dest_img} of=${img_target_dev} conv=fsync oflag=sync bs=8k
 
 ## force-check the filesystem; re-write the image if it fails
 if ! fsck.ext4 -n -f ${img_target_dev} ; then
+    echo "well, that didn't work; trying again"
     dd if=${dest_img} of=${img_target_dev} conv=fsync oflag=sync bs=8k
     fsck.ext4 -n -f ${img_target_dev}
 fi
@@ -177,7 +184,7 @@ image_id=$( \
     ${kernel_id} \
     --architecture x86_64 \
     --name "${ami_name}" \
-    --root-device-name /dev/sda1 \
+    --root-device-name ${root_device} \
     --block-device-mappings "[{\"DeviceName\":\"${root_device}\",\"Ebs\":{\"SnapshotId\":\"${snap_id}\",\"VolumeSize\":10}},{\"DeviceName\":\"/dev/sdb\",\"VirtualName\":\"ephemeral0\"}]" \
     ${virt_type} \
     | jq -r .ImageId
