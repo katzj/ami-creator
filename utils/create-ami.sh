@@ -23,6 +23,8 @@ cachedir="${_basedir}/cache"
 config="$( readlink -f ${1} )"
 ami_name="${2}"
 block_dev="${3}"
+img_target_dev="${block_dev}1"
+
 vol_id="${4}"
 virt_type=""
 kernel_id="--kernel-id aki-919dcaf8"
@@ -116,7 +118,7 @@ EOF
 hdparm -z ${block_dev}
 
 ## write image to volume
-img_target_dev="${block_dev}1"
+echo "writing image to ${img_target_dev}"
 dd if=${dest_img} of=${img_target_dev} conv=fsync oflag=sync bs=8k
 
 ## force-check the filesystem; re-write the image if it fails
