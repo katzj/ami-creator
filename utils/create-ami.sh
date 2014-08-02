@@ -1,7 +1,5 @@
 #!/bin/bash
 
-## @todo check if ami name already exists
-
 set -e
 set -u
 # set -x
@@ -93,6 +91,10 @@ my_instance_id="$( curl -s http://169.254.169.254/latest/meta-data/instance-id )
 export AWS_DEFAULT_REGION="$( curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone | sed -e 's#.$##g' )"
 [ -n "${AWS_ACCESS_KEY_ID}" ] || die "AWS_ACCESS_KEY_ID not set"
 [ -n "${AWS_SECRET_ACCESS_KEY}" ] || die "AWS_SECRET_ACCESS_KEY not set"
+
+if [ "$( aws ec2 describe-images --filters "Name=name,Values=${ami_name}" | jq -r '.Images | length' )" -ne 0 ]; then
+    die "AMI with that name already exists!"
+fi
 
 if [ "$( aws ec2 describe-volumes --volume-ids ${vol_id} | jq -r .Volumes[].Attachments[].InstanceId )" != "${my_instance_id}" ]; then
     die "volume ${vol_id} is not attached to this instance!"
