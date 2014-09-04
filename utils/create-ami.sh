@@ -114,13 +114,16 @@ fi
 dd if=/dev/zero of=${block_dev} bs=8M count=10 conv=fsync oflag=sync
 sync;sync;sync
 
+## reread partition table
+hdparm -z ${block_dev}
+
 ## partition volume
-sfdisk ${block_dev} << EOF
-0,,83,*
-;
-;
-;
-EOF
+## http://telinit0.blogspot.com/2011/12/scripting-parted.html
+## need to leave more space for grub; start partition on 2nd cylinder
+## http://serverfault.com/questions/523985/fixing-a-failed-grub-upgrade-on-raid
+parted ${block_dev} --script -- mklabel msdos
+parted ${block_dev} --script -- mkpart primary ext2 1 -1 ## validated by running grub2-install
+parted ${block_dev} --script -- set 1 boot on
 
 ## reread partition table
 hdparm -z ${block_dev}
@@ -137,6 +140,7 @@ if ! fsck.ext4 -n -f ${img_target_dev} ; then
 fi
 
 ## resize the filesystem
+e2fsck -f ${img_target_dev}
 resize2fs ${img_target_dev}
 
 if [ $# -eq 5 ]; then
@@ -193,3 +197,10 @@ image_id=$( \
 )
 
 echo "created AMI with id ${image_id}"
+
+{
+    echo "{"
+    echo "    \"snapshot_id\": \"${snap_id}\", "
+    echo "    \"ami_id\": \"${image_id}\""
+    echo "}"
+} > "${config}.json"
