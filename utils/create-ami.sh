@@ -114,7 +114,21 @@ dd if=/dev/zero of=${block_dev} bs=8M count=10 conv=fsync oflag=sync
 sync;sync;sync
 
 ## reread partition table
-hdparm -z ${block_dev}
+## I've observed this failing when running this script back-to-back; try it a
+## couple of times…
+reread_count=0
+reread_success=0
+while [ $reread_count -lt 3 ]; do
+    if hdparm -z ${block_dev} ; then
+        reread_success=1
+        break
+    fi
+    
+    sleep 5
+    reread_count=$(( reread_count + 1 ))
+done
+
+[ $reread_success -eq 1 ] || die "failed to reread partition table"
 
 ## partition volume
 ## http://telinit0.blogspot.com/2011/12/scripting-parted.html
