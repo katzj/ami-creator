@@ -221,6 +221,7 @@ echo "created AMI with id ${image_id}"
 ## create json file next to input image
 {
     echo "{"
+    echo "    \"virt_type\": \"${virt_type}\", "
     echo "    \"snapshot_id\": \"${snap_id}\", "
     echo "    \"ami_id\": \"${image_id}\""
     echo "}"
