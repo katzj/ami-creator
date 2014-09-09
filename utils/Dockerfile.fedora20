@@ -1,0 +1,11 @@
+# -*- Dockerfile -*-
+
+## "xz compression not available" from yum building on centos6
+## python-imgcreate not available on centos7
+## fedora:20 is the current stable version, and python-imgcreate *is* available
+FROM fedora:20
+
+RUN yum -y install python-imgcreate
+
+VOLUME [ "/srv/work" ]
+WORKDIR /tmp

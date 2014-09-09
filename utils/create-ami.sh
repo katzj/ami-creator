@@ -1,7 +1,6 @@
 #!/bin/bash
 
-set -e
-set -u
+set -e -u
 # set -x
 
 function die() {
@@ -12,9 +11,6 @@ function die() {
 [ $EUID -eq 0 ] || die "must be root"
 
 _basedir="$( cd $( dirname -- $0 )/.. && /bin/pwd )"
-
-cachedir="${_basedir}/cache"
-[ -d "${cachedir}" ] || mkdir "${cachedir}"
 
 [ $# -eq 4 -o $# -eq 5 ] || die "usage: $0 <kickstart config file> <ami name> <ebs block device> <ebs vol id> [<virtualization-type>]"
 

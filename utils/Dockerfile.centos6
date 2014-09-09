@@ -1,0 +1,8 @@
+# -*- Dockerfile -*-
+FROM centos:centos6
+
+RUN yum -y localinstall http://mirror.pnl.gov/epel/6/i386/epel-release-6-8.noarch.rpm
+RUN yum -y install python-imgcreate
+
+VOLUME [ "/srv/work" ]
+WORKDIR /tmp
