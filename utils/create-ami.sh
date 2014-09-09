@@ -17,6 +17,8 @@ function usage() {
 
 _basedir="$( cd $( dirname -- $0 )/.. && /bin/pwd )"
 
+[ -e "${1}" ] || die "$1 doesn't exist"
+
 img="$( readlink -f ${1} )"
 ami_name="${2}"
 block_dev="${3}"
