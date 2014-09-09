@@ -83,6 +83,8 @@ which curl      >/dev/null 2>&1 || die "need curl"
 which jq        >/dev/null 2>&1 || die "need jq"
 which e2fsck    >/dev/null 2>&1 || die "need e2fsck"
 which resize2fs >/dev/null 2>&1 || die "need resize2fs"
+which hdparm    >/dev/null 2>&1 || die "need hdparm"
+which parted    >/dev/null 2>&1 || die "need parted"
 
 ## the block device must exist
 [ -e "${block_dev}" ] || die "${block_dev} does not exist"
