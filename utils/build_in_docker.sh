@@ -47,7 +47,6 @@ docker run \
     \
     /bin/bash -c " \
         /srv/ami-creator/ami_creator/ami_creator.py \
-            -d -v \
             -c /srv/image-config/${kickstart_base} \
             -n ${name} \
             -t /tmp \
